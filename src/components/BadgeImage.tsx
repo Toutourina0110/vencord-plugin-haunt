@@ -19,7 +19,7 @@ interface Props extends HTMLProps<HTMLImageElement> {
 /**
  * A badge `<img>` that heals itself when Discord's CSP blocks the haunt.gg asset
  * host — see `imageCache.ts`. Costs nothing when the image loads normally, which
- * is the case on desktop and on the browser extension.
+ * is the case on the browser extension.
  */
 export function BadgeImage({ url, alt, size, ...rest }: Props) {
     const [src, setSrc] = useState(url);

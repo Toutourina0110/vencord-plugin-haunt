@@ -34,12 +34,12 @@ export const settings = definePluginSettings({
     corsProxyUrl: {
         type: OptionType.STRING,
         displayName: "Lookup proxy URL",
-        description: "haunt.gg sends no CORS headers, so in the browser the lookup has to be relayed. Point this at a proxy you control — see the README. Not needed on desktop or on the userscript.",
+        description: "haunt.gg sends no CORS headers, so in the extension the lookup has to be relayed. Point this at a proxy you control — see the README. Not needed on the userscript.",
         default: "",
         placeholder: "https://haunt-proxy.you.workers.dev",
-        // Desktop goes through the main process and the userscript through GM_fetch;
-        // neither is bound by CORS, so the setting would only be noise there.
-        hidden: () => !IS_WEB || IS_USERSCRIPT,
+        // The userscript goes through GM_fetch, which is not bound by CORS, so the
+        // setting would only be noise there.
+        hidden: () => IS_USERSCRIPT,
         isValid: (value: string) =>
             !value.trim() || /^https:\/\/\S+$/.test(value.trim()) || "Must be an https:// URL",
         onChange: () => clearCache()
