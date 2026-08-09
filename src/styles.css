@@ -1,0 +1,186 @@
+.vc-haunt-chat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: middle;
+    font-size: 0.85rem;
+    line-height: 1;
+    color: var(--text-muted);
+}
+
+.vc-haunt-chat-separator {
+    opacity: 0.4;
+    white-space: pre;
+}
+
+.vc-haunt-chat-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.vc-haunt-link {
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.vc-haunt-chat-name.vc-haunt-link {
+    padding: 1px 3px;
+    margin: -1px -3px;
+}
+
+.vc-haunt-chat-name.vc-haunt-link:hover,
+.vc-haunt-chat-name.vc-haunt-link:focus-visible {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-default, var(--text-normal));
+}
+
+.vc-haunt-chat-username {
+    font-weight: 500;
+}
+
+.vc-haunt-chat-uid {
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-haunt-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+
+.vc-haunt-badge {
+    object-fit: contain;
+    vertical-align: middle;
+}
+
+.vc-haunt-badge-overflow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-haunt-badge-tooltip {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 220px;
+    text-align: center;
+}
+
+.vc-haunt-badge-tooltip-name {
+    font-weight: 600;
+}
+
+.vc-haunt-badge-tooltip-description {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.vc-haunt-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+
+.vc-haunt-profile-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    color: inherit;
+    text-align: left;
+}
+
+.vc-haunt-profile-header:hover .vc-haunt-profile-external {
+    opacity: 1;
+}
+
+.vc-haunt-profile-badges {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.vc-haunt-profile-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.vc-haunt-profile-names {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.vc-haunt-profile-names > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-haunt-profile-displayname {
+    color: var(--text-muted);
+}
+
+.vc-haunt-profile-external {
+    flex-shrink: 0;
+    opacity: 0.5;
+    transition: opacity 0.1s ease;
+}
+
+.vc-haunt-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.vc-haunt-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vc-haunt-field-label {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.vc-haunt-field-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-haunt-field-copy {
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text-default, var(--text-normal));
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+    text-align: left;
+}
+
+.vc-haunt-field-copy:hover {
+    text-decoration: underline;
+}
+
+.vc-haunt-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+}
