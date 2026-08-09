@@ -5,20 +5,17 @@
  */
 
 import { Logger } from "@utils/Logger";
-import { PluginNative } from "@utils/types";
 
 import { proxiedUrl, TransportKind, transportKind } from "./transport";
 import { HauntLookupResponse, HauntProfile } from "./types";
 
 export const logger = new Logger("Haunt");
 
-const Native = VencordNative.pluginHelpers.Haunt as PluginNative<typeof import("./native")>;
-
 const API_URL = "https://haunt.gg/api/lookup/user";
 
-/** No transport is available at all — web build with no proxy configured. */
+/** No transport is available at all — extension with no proxy configured. */
 const STATUS_NO_TRANSPORT = -2;
-/** The request threw. On the web that usually means CORS. */
+/** The request threw — usually a CORS refusal, or a proxy that is not answering. */
 const STATUS_NETWORK_ERROR = -1;
 
 export interface Credentials {
@@ -44,11 +41,18 @@ export const lookupUrl = (discordId: string) =>
     `${API_URL}?type=discord&value=${encodeURIComponent(discordId)}&badges=true&views=true&feedback=true`;
 
 /**
- * A dedicated proxy can hold the API key itself, so on the web an empty key is
- * not necessarily a reason to skip the lookup.
+ * A dedicated proxy can hold the API key itself, so an empty key is not necessarily
+ * a reason to skip the lookup.
  */
 export function hasCredentials({ apiKey, proxyUrl }: Credentials) {
     return !!apiKey.trim() || transportKind(proxyUrl) === "proxy";
+}
+
+async function request(creds: Credentials, discordId: string, kind: TransportKind): Promise<RawResponse> {
+    if (kind === "unavailable") return { status: STATUS_NO_TRANSPORT, retryAfter: null, data: "" };
+
+    const target = lookupUrl(discordId);
+    return webRequest(kind === "proxy" ? proxiedUrl(target, creds.proxyUrl) : target, creds.apiKey.trim());
 }
 
 async function webRequest(url: string, apiKey: string): Promise<RawResponse> {
@@ -66,16 +70,6 @@ async function webRequest(url: string, apiKey: string): Promise<RawResponse> {
     } catch (e) {
         return { status: STATUS_NETWORK_ERROR, retryAfter: null, data: String(e) };
     }
-}
-
-async function request(creds: Credentials, discordId: string, kind: TransportKind): Promise<RawResponse> {
-    const apiKey = creds.apiKey.trim();
-
-    if (kind === "native") return Native.lookupUser(apiKey, discordId);
-    if (kind === "unavailable") return { status: STATUS_NO_TRANSPORT, retryAfter: null, data: "" };
-
-    const target = lookupUrl(discordId);
-    return webRequest(kind === "proxy" ? proxiedUrl(target, creds.proxyUrl) : target, apiKey);
 }
 
 function parse(data: string): HauntLookupResponse | null {
@@ -131,7 +125,7 @@ export async function lookupByDiscordId(creds: Credentials, discordId: string): 
         case STATUS_NO_TRANSPORT:
             return {
                 kind: "unsupported",
-                message: "haunt.gg cannot be reached from the browser directly. Set a lookup proxy in the plugin settings."
+                message: "haunt.gg cannot be reached from the extension directly. Set a lookup proxy in the plugin settings."
             };
 
         case STATUS_NETWORK_ERROR:

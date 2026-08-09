@@ -8,15 +8,12 @@ import { logger } from "./api";
 
 /**
  * Badge artwork lives on assets.haunt.gg / r2.haunt.gg, which Discord's CSP does not
- * know about. Each build deals with that differently:
+ * know about. The browser extension strips Discord's CSP header outright, so a plain
+ * `<img src>` works there. The userscript cannot do that, so its images may be blocked.
  *
- * - Desktop whitelists both hosts from `native.ts` while the app starts.
- * - The browser extension strips Discord's CSP header outright, so `<img src>` works.
- * - The userscript can do neither, so an `<img>` pointing at haunt.gg may be blocked.
- *
- * For that last case we fetch the image ourselves — on the userscript the global
- * `fetch` is GM_fetch, which ignores CORS — and hand the `<img>` a `data:` URL
- * instead. `data:` is in Discord's `img-src` list, so it always renders.
+ * For that case we fetch the image ourselves — on the userscript the global `fetch` is
+ * GM_fetch, which ignores CORS — and hand the `<img>` a `data:` URL instead. `data:` is
+ * in Discord's `img-src` list, so it always renders.
  */
 
 const inlined = new Map<string, string | null>();

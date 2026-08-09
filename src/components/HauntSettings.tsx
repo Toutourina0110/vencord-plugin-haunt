@@ -25,15 +25,6 @@ function hostOf(url: string) {
 
 function TransportStatus({ kind, proxyUrl }: { kind: TransportKind; proxyUrl: string; }) {
     switch (kind) {
-        case "native":
-            return (
-                <Span size="sm">
-                    Lookups run in Discord's main process, so haunt.gg is reachable directly.
-                    Badge artwork only loads after a full restart of Discord, since the image
-                    host is whitelisted when the app starts.
-                </Span>
-            );
-
         case "userscript":
             return (
                 <Span size="sm">
