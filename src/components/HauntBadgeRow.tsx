@@ -8,6 +8,7 @@ import { Tooltip } from "@webpack/common";
 
 import { ResolvedBadge } from "../badges";
 import { cl } from "../utils";
+import { BadgeImage } from "./BadgeImage";
 
 interface Props {
     badges: ResolvedBadge[];
@@ -36,12 +37,11 @@ export function HauntBadgeRow({ badges, size, max }: Props) {
                     }
                 >
                     {tooltipProps => (
-                        <img
+                        <BadgeImage
                             {...tooltipProps}
-                            className={cl("badge")}
-                            src={badge.imageUrl!}
+                            url={badge.imageUrl!}
                             alt={badge.name}
-                            style={{ width: size, height: size }}
+                            size={size}
                         />
                     )}
                 </Tooltip>

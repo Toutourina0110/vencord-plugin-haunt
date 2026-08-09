@@ -184,3 +184,10 @@
     gap: 8px;
     margin-bottom: 8px;
 }
+
+.vc-haunt-settings-warning {
+    padding: 8px 10px;
+    border-radius: 5px;
+    border-left: 3px solid var(--text-warning, var(--status-warning, #f0b132));
+    background: var(--background-secondary-alt, var(--background-secondary));
+}
