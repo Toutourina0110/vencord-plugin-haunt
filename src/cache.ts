@@ -11,7 +11,7 @@ import { Queue } from "@utils/Queue";
 import { useEffect, useState } from "@webpack/common";
 
 import { settings } from ".";
-import { logger, lookupByDiscordId } from "./api";
+import { Credentials, hasCredentials, logger, lookupByDiscordId } from "./api";
 import { HauntProfile } from "./types";
 
 const STORE_KEY = "haunt-profile-cache";
@@ -35,6 +35,13 @@ const ERROR_BACKOFF = 60_000;
 let keyRejectedHandler: ((message: string) => void) | undefined;
 export function setKeyRejectedHandler(handler: (message: string) => void) {
     keyRejectedHandler = handler;
+}
+
+export function credentials(): Credentials {
+    return {
+        apiKey: settings.store.apiKey,
+        proxyUrl: settings.store.corsProxyUrl
+    };
 }
 
 let loading: Promise<void> | undefined;
@@ -120,14 +127,14 @@ async function runLookup(discordId: string) {
         return;
     }
 
-    const apiKey = settings.store.apiKey.trim();
-    if (!apiKey || keyRejected) return;
+    const creds = credentials();
+    if (!hasCredentials(creds) || keyRejected) return;
 
     const wait = Math.max(pausedUntil - Date.now(), lastRequestAt + settings.store.requestDelayMs - Date.now());
     if (wait > 0) await sleep(wait);
 
     lastRequestAt = Date.now();
-    const result = await lookupByDiscordId(apiKey, discordId);
+    const result = await lookupByDiscordId(creds, discordId);
 
     switch (result.kind) {
         case "ok":
@@ -149,6 +156,12 @@ async function runLookup(discordId: string) {
             logger.warn(`Rate limited, pausing lookups for ${Math.round(result.retryAfterMs / 1000)}s`);
             break;
 
+        case "unsupported":
+            // Nothing to retry against — the settings panel explains how to fix it.
+            keyRejected = true;
+            logger.warn(result.message);
+            break;
+
         case "error":
             logger.warn(`Lookup for ${discordId} failed: ${result.message}`);
             store(discordId, null, ERROR_BACKOFF);
@@ -158,7 +171,7 @@ async function runLookup(discordId: string) {
 
 function scheduleLookup(discordId: string) {
     if (inFlight.has(discordId) || keyRejected) return;
-    if (!settings.store.apiKey.trim()) return;
+    if (!hasCredentials(credentials())) return;
 
     inFlight.add(discordId);
     queue.push(() => runLookup(discordId).finally(() => inFlight.delete(discordId)));

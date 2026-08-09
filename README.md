@@ -15,8 +15,9 @@ Shows the [haunt.gg](https://haunt.gg) profile behind any Discord account — ri
 7. [Step 5: Get an API key and enter it](#step-5-get-an-api-key-and-enter-it)
 8. [Every setting explained](#every-setting-explained)
 9. [When something goes wrong](#when-something-goes-wrong)
-10. [Later: updating Vencord](#later-updating-vencord)
-11. [For the curious: how it works inside](#for-the-curious-how-it-works-inside)
+10. [Running it in the browser](#running-it-in-the-browser)
+11. [Later: updating Vencord](#later-updating-vencord)
+12. [For the curious: how it works inside](#for-the-curious-how-it-works-inside)
 
 ---
 
@@ -60,11 +61,11 @@ Every single field can be switched off in the settings. People without a haunt.g
 | **Node.js 22 or newer** | Builds Vencord | <https://nodejs.org> (take the "LTS" version) |
 | **pnpm** | Downloads the parts Vencord is built from | installed below |
 | **Git** | Downloads Vencord | <https://git-scm.com/downloads> |
-| **Discord Desktop** | The plugin only runs in the app, not in a browser | <https://discord.com/download> |
+| **Discord Desktop** | The easiest way to run the plugin. The browser works too, see [Running it in the browser](#running-it-in-the-browser) | <https://discord.com/download> |
 | **A haunt.gg API key** | Without one the plugin cannot look anything up | see [Step 5](#step-5-get-an-api-key-and-enter-it) |
 
-> [!IMPORTANT]
-> This plugin only works in the **Discord desktop app**, not in Discord in a browser. The reason is at the very bottom under ["For the curious"](#for-the-curious-how-it-works-inside).
+> [!NOTE]
+> The steps below describe the **Discord desktop app**, which is the simplest setup. The plugin also runs on Vencord and Equicord in the browser — as a **userscript** it needs no extra work at all, as a **browser extension** it needs one small proxy you deploy yourself. Both are covered in [Running it in the browser](#running-it-in-the-browser).
 
 ---
 
@@ -244,6 +245,7 @@ Found under **Settings → Vencord → Plugins → Haunt → gear icon**.
 | Setting | What it does |
 |---|---|
 | **API key** | Your key from haunt.gg |
+| **Lookup proxy URL** | Only shown in the browser extension, where it is required. See [Running it in the browser](#running-it-in-the-browser) |
 | **Test key** | Tries the key against your own account |
 | **Clear cache** | Throws away everything remembered so far. Handy when somebody changed their profile and you do not want to wait |
 
@@ -317,6 +319,12 @@ Discord blocks images from unknown sites by default. The plugin lifts that block
 
 The key is wrong or lacks the `lookup:user` permission. The plugin deliberately stops asking after that, so it does not keep hammering a closed door. Enter a working key and it picks up again by itself.
 
+### In the browser: nothing shows up and the settings warn about a proxy
+
+You are on the extension build, where haunt.gg cannot be reached directly. Follow [Running it in the browser](#running-it-in-the-browser) — or switch to the userscript build, which needs no proxy.
+
+If you already set a proxy URL and lookups still fail, the settings panel names the host it is calling. Open that URL in a tab: the worker should answer with JSON, not a Cloudflare error page. A `401` with "No API key" means neither the `HAUNT_API_KEY` secret nor the plugin's key field is filled in.
+
 ### I changed my haunt.gg profile but still see the old data
 
 Data is cached for 30 minutes. **Clear cache** in the plugin settings throws it away immediately.
@@ -343,6 +351,69 @@ Discord is back to stock after that.
 
 ---
 
+## Running it in the browser
+
+The plugin works on **Vencord and Equicord in the browser**, not just in the desktop app. Which of the two browser flavours you use decides how much setup there is.
+
+### The one obstacle
+
+haunt.gg answers lookups happily, but it does not send an `Access-Control-Allow-Origin` header. A normal browser therefore refuses to hand the answer to a page on `discord.com`, no matter that the request itself succeeded. Everything below is about getting around that one header.
+
+### Userscript — nothing to do
+
+If you run Vencord or Equicord as a **userscript** (Tampermonkey, Violentmonkey), it just works. Install the plugin, enter your API key, done.
+
+The reason: the userscript build replaces the browser's `fetch` with one built on `GM_xmlhttpRequest`. That runs inside your userscript manager rather than inside the page, and the same-origin rule does not apply there. The plugin gets the same freedom the desktop app has, for free.
+
+Badge artwork is handled too: if Discord's CSP blocks the haunt.gg image host, the plugin fetches the image through the same channel and hands the `<img>` a `data:` URL instead. You do not have to do anything for that either.
+
+### Browser extension — one proxy
+
+The **extension** build (Vencord Web / Equicord Web from the Chrome or Firefox store) has no such escape hatch. Its host permissions cover `discord.com` only, and the plugin code runs in the page itself, so it is bound by CORS like any other script.
+
+The fix is a small relay that you host and that answers with the missing header. One is included in this repo at [`web/haunt-proxy.worker.js`](web/haunt-proxy.worker.js) — a Cloudflare Worker, free tier, a couple of minutes to set up:
+
+```bash
+npm install -g wrangler
+wrangler login
+wrangler deploy web/haunt-proxy.worker.js --name haunt-proxy --compatibility-date 2025-01-01
+```
+
+Wrangler prints a URL like `https://haunt-proxy.yourname.workers.dev`. Paste that into the plugin's **Lookup proxy URL** setting.
+
+Then, so your API key never leaves infrastructure you control:
+
+```bash
+wrangler secret put HAUNT_API_KEY --name haunt-proxy
+```
+
+With that secret set you can leave the plugin's **API key** field empty — the worker adds the key itself, and the key never travels through the browser at all. Without it, the plugin sends the key in the `X-API-Key` header and the worker passes it on, which is fine too as long as the worker is yours.
+
+Optionally lock the worker down so only Discord may call it:
+
+```bash
+wrangler secret put ALLOWED_ORIGINS --name haunt-proxy
+# paste: https://discord.com,https://canary.discord.com,https://ptb.discord.com
+```
+
+The worker only ever talks to the single haunt.gg lookup endpoint and only forwards the five query parameters the plugin uses, so it cannot be turned into an open relay for anything else.
+
+> [!WARNING]
+> Do not point this setting at a random public CORS proxy. Whoever runs it would see every lookup, and — unless you set the worker secret — your API key along with them. The setting also accepts the generic `https://some-proxy.example/?url={url}` shape for completeness, but most public proxies strip custom request headers, which means the `X-API-Key` header never arrives and every lookup comes back unauthorized.
+
+### What differs from the desktop app
+
+| | Desktop | Userscript | Extension |
+|---|---|---|---|
+| Lookups | Main process | `GM_xmlhttpRequest` | Your proxy |
+| Setup beyond the API key | none | none | deploy the worker |
+| Badge images | after a full Discord restart | immediately | immediately |
+| Restart needed after install | yes | no | no |
+
+Everything else — chat decoration, profile card, every setting, the cache — behaves identically.
+
+---
+
 ## Later: updating Vencord
 
 When a new Vencord version comes out:
@@ -364,9 +435,9 @@ Badge names, descriptions and colours are baked into `badgeCatalog.ts`, taken fr
 
 ## For the curious: how it works inside
 
-**Why desktop only?** The haunt.gg API sends no CORS headers. That means a browser refuses to hand the answer to a foreign site like `discord.com`. The desktop app, however, has a part that runs outside the browser (the main process), where that rule does not apply — so the plugin makes its requests there. In a browser there is no such way around it.
+**Why is a detour needed at all?** The haunt.gg API sends no CORS headers. That means a browser refuses to hand the answer to a foreign site like `discord.com` — the request goes out and comes back, but the page is not allowed to read it. Every build therefore needs somewhere to make the request that is not the page: the desktop app uses the Electron main process, the userscript uses `GM_xmlhttpRequest` inside the userscript manager, and the extension uses a proxy you host. See [Running it in the browser](#running-it-in-the-browser).
 
-**Why the restart for the badges?** That is a second, unrelated thing: a security rule (CSP) only lets Discord load images from known addresses. Vencord can whitelist addresses, but it does so exactly once, when the main process starts. Reloading the window never reaches that part.
+**Why the restart for the badges?** That is a second, unrelated thing: a security rule (CSP) only lets Discord load images from known addresses. On desktop Vencord can whitelist addresses, but it does so exactly once, when the main process starts — reloading the window never reaches that part. The browser extension sidesteps it by stripping Discord's CSP header outright, and on the userscript, where neither is possible, the plugin notices the blocked image and re-loads it as an inline `data:` URL.
 
 **Why the queue?** The API answers about one person per request — there is no way to ask about twenty at once. In a busy channel that would mean a lot of simultaneous requests. So the plugin works through them one at a time with a short pause, remembers every answer (including "haunt.gg does not know them"), and backs off on its own when it is told to slow down.
 

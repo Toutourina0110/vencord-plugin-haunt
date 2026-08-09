@@ -7,6 +7,7 @@
 import { Logger } from "@utils/Logger";
 import { PluginNative } from "@utils/types";
 
+import { proxiedUrl, TransportKind, transportKind } from "./transport";
 import { HauntLookupResponse, HauntProfile } from "./types";
 
 export const logger = new Logger("Haunt");
@@ -15,11 +16,22 @@ const Native = VencordNative.pluginHelpers.Haunt as PluginNative<typeof import("
 
 const API_URL = "https://haunt.gg/api/lookup/user";
 
+/** No transport is available at all — web build with no proxy configured. */
+const STATUS_NO_TRANSPORT = -2;
+/** The request threw. On the web that usually means CORS. */
+const STATUS_NETWORK_ERROR = -1;
+
+export interface Credentials {
+    apiKey: string;
+    proxyUrl: string;
+}
+
 export type LookupResult =
     | { kind: "ok"; profile: HauntProfile; }
     | { kind: "none"; reason: "missing" | "private"; }
     | { kind: "unauthorized"; message: string; }
     | { kind: "ratelimited"; retryAfterMs: number; }
+    | { kind: "unsupported"; message: string; }
     | { kind: "error"; message: string; };
 
 interface RawResponse {
@@ -28,23 +40,42 @@ interface RawResponse {
     data: string;
 }
 
-async function request(apiKey: string, discordId: string): Promise<RawResponse> {
-    if (!IS_WEB) return Native.lookupUser(apiKey, discordId);
+export const lookupUrl = (discordId: string) =>
+    `${API_URL}?type=discord&value=${encodeURIComponent(discordId)}&badges=true&views=true&feedback=true`;
 
-    const url = `${API_URL}?type=discord&value=${encodeURIComponent(discordId)}&badges=true&views=true&feedback=true`;
+/**
+ * A dedicated proxy can hold the API key itself, so on the web an empty key is
+ * not necessarily a reason to skip the lookup.
+ */
+export function hasCredentials({ apiKey, proxyUrl }: Credentials) {
+    return !!apiKey.trim() || transportKind(proxyUrl) === "proxy";
+}
 
+async function webRequest(url: string, apiKey: string): Promise<RawResponse> {
+    // On the userscript build this `fetch` is GM_fetch, injected by Vencord's web
+    // build — same signature, but it is not subject to CORS.
     try {
         const res = await fetch(url, {
             headers: {
-                "X-API-Key": apiKey,
-                Accept: "application/json"
+                Accept: "application/json",
+                ...apiKey ? { "X-API-Key": apiKey } : {}
             }
         });
 
         return { status: res.status, retryAfter: res.headers.get("retry-after"), data: await res.text() };
     } catch (e) {
-        return { status: -1, retryAfter: null, data: String(e) };
+        return { status: STATUS_NETWORK_ERROR, retryAfter: null, data: String(e) };
     }
+}
+
+async function request(creds: Credentials, discordId: string, kind: TransportKind): Promise<RawResponse> {
+    const apiKey = creds.apiKey.trim();
+
+    if (kind === "native") return Native.lookupUser(apiKey, discordId);
+    if (kind === "unavailable") return { status: STATUS_NO_TRANSPORT, retryAfter: null, data: "" };
+
+    const target = lookupUrl(discordId);
+    return webRequest(kind === "proxy" ? proxiedUrl(target, creds.proxyUrl) : target, apiKey);
 }
 
 function parse(data: string): HauntLookupResponse | null {
@@ -60,8 +91,16 @@ function retryAfterMs(header: string | null) {
     return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 60_000;
 }
 
-export async function lookupByDiscordId(apiKey: string, discordId: string): Promise<LookupResult> {
-    const { status, retryAfter, data } = await request(apiKey, discordId);
+function networkErrorMessage(kind: TransportKind, detail: string) {
+    if (kind === "proxy")
+        return `Could not reach the lookup proxy — check the URL in the settings (${detail})`;
+
+    return detail;
+}
+
+export async function lookupByDiscordId(creds: Credentials, discordId: string): Promise<LookupResult> {
+    const kind = transportKind(creds.proxyUrl);
+    const { status, retryAfter, data } = await request(creds, discordId, kind);
     const body = parse(data);
 
     switch (status) {
@@ -88,6 +127,15 @@ export async function lookupByDiscordId(apiKey: string, discordId: string): Prom
 
         case 429:
             return { kind: "ratelimited", retryAfterMs: retryAfterMs(retryAfter) };
+
+        case STATUS_NO_TRANSPORT:
+            return {
+                kind: "unsupported",
+                message: "haunt.gg cannot be reached from the browser directly. Set a lookup proxy in the plugin settings."
+            };
+
+        case STATUS_NETWORK_ERROR:
+            return { kind: "error", message: networkErrorMessage(kind, data) };
 
         default:
             return { kind: "error", message: body?.error ?? `Request failed with status ${status}` };
